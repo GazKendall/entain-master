@@ -18,7 +18,7 @@ type RacesRepo interface {
 	Init() error
 
 	// List will return a list of races.
-	List(filter *racing.ListRacesRequestFilter) ([]*racing.Race, error)
+	List(filter *racing.ListRacesRequestFilter, orderBy string) ([]*racing.Race, error)
 }
 
 type racesRepo struct {
@@ -44,8 +44,9 @@ func (r *racesRepo) Init() error {
 }
 
 // List returns a collection of races that match the provided filter
-// or all races if no filter is provided.
-func (r *racesRepo) List(filter *racing.ListRacesRequestFilter) ([]*racing.Race, error) {
+// or all races if no filter is provided. The results will be ordered by
+// advertised start time by default or the order as specified in the request.
+func (r *racesRepo) List(filter *racing.ListRacesRequestFilter, orderBy string) ([]*racing.Race, error) {
 	var (
 		err   error
 		query string
@@ -55,6 +56,7 @@ func (r *racesRepo) List(filter *racing.ListRacesRequestFilter) ([]*racing.Race,
 	query = getRaceQueries()[racesList]
 
 	query, args = r.applyFilter(query, filter)
+	query = r.applyOrder(query, orderBy)
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
@@ -93,6 +95,36 @@ func (r *racesRepo) applyFilter(query string, filter *racing.ListRacesRequestFil
 	}
 
 	return query, args
+}
+
+// applyOrder returns the query with an order by clause appended based on the order specified in the request.
+func (r *racesRepo) applyOrder(query string, orderBy string) string {
+	// If no order is specified, order by advertised start time.
+	if strings.TrimSpace(orderBy) == "" {
+		query += " ORDER BY advertised_start_time"
+		return query
+	}
+
+	// Split the order by string by comma into an array
+	fields := strings.Split(orderBy, ",")
+
+	var validFields []string
+
+	// Trim any whitespace around each order by field
+	for _, value := range fields {
+		value = strings.TrimSpace(strings.Replace(value, "  ", " ", -1))
+		if value != "" {
+			validFields = append(validFields, value)
+		}
+	}
+
+	if len(validFields) == 0 {
+		query += " ORDER BY advertised_start_time"
+		return query
+	}
+
+	query += " ORDER BY " + strings.Join(validFields, ", ")
+	return query
 }
 
 func (m *racesRepo) scanRaces(
