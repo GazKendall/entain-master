@@ -4,13 +4,12 @@ import (
 	"database/sql"
 	"git.neds.sh/matty/entain/racing/proto/racing"
 	"os"
+	"syreclabs.com/go/faker"
 	"testing"
 	"time"
-
-	"syreclabs.com/go/faker"
 )
 
-const racingTestsDB = "racing_tests.db"
+const _racingTestsDB = "racing_tests.db"
 
 // Setup inputs and expected outputs for TestApplyFilter test.
 var applyFilterTests = []struct {
@@ -94,74 +93,138 @@ func TestApplyFilter(t *testing.T) {
 	}
 }
 
+// Setup inputs and expected outputs for TestApplyOrder test.
+var applyOrderTests = []struct {
+	name    string
+	orderBy string
+	query   string
+}{
+	{
+		"empty_order_by_default",
+		"",
+		" ORDER BY advertised_start_time",
+	},
+	{
+		"empty_order_by_fields_default",
+		",",
+		" ORDER BY advertised_start_time",
+	},
+	{
+		"order_by_single_field",
+		"meeting_id",
+		" ORDER BY meeting_id",
+	},
+	{
+		"order_by_single_field_desc",
+		"meeting_id desc",
+		" ORDER BY meeting_id desc",
+	},
+	{
+		"order_by_multiple_fields",
+		"meeting_id desc, advertised_start_time",
+		" ORDER BY meeting_id desc, advertised_start_time",
+	},
+	{
+		"remove_additional_spaces",
+		"  meeting_id desc,  advertised_start_time  ",
+		" ORDER BY meeting_id desc, advertised_start_time",
+	},
+	{
+		"ignore_empty_fields",
+		"meeting_id desc,, ,advertised_start_time",
+		" ORDER BY meeting_id desc, advertised_start_time",
+	},
+}
+
+// Test the applyOrder method and validate correct query is returned.
+func TestApplyOrder(t *testing.T) {
+	var (
+		r racesRepo
+		q = getRaceQueries()[racesList]
+	)
+
+	// Execute the applyFilter method for each test input as a separate sub-test.
+	for _, tc := range applyOrderTests {
+		t.Run(tc.name, func(t *testing.T) {
+			query := r.applyOrder(q, tc.orderBy)
+
+			// Validate the returned query matches the expected query.
+			if query != q+tc.query {
+				t.Errorf("Actual query %s does not match expected query %s", query, q+tc.query)
+			}
+		})
+	}
+}
+
 // Setup inputs and expected outputs for TestList test.
 var listTests = []struct {
-	name      string
-	filter    racing.ListRacesRequestFilter
-	raceCount int
+	name    string
+	filter  racing.ListRacesRequestFilter
+	raceIds []int64
 }{
 	{
 		"no_results",
 		racing.ListRacesRequestFilter{MeetingIds: []int64{10}},
-		0, // no races
+		nil, // no races
 	},
 	{
 		"empty_filter",
 		racing.ListRacesRequestFilter{},
-		4, // all races
+		[]int64{1, 2, 3, 4}, // all races
 	},
 	{
 		"single_meeting_id",
 		racing.ListRacesRequestFilter{MeetingIds: []int64{1}},
-		2, // race 1 and 3
+		[]int64{1, 3}, // races 1 and 3
 	},
 	{
 		"multiple_meeting_id",
 		racing.ListRacesRequestFilter{MeetingIds: []int64{1, 5}},
-		3, // race 1, 2 and 3
+		[]int64{1, 2, 3}, // race 1, 2 and 3
 	},
 	{
 		"no_meeting_id_visible_only",
 		racing.ListRacesRequestFilter{ShowVisibleOnly: true},
-		2, // race 1 and 2
+		[]int64{1, 2}, // race 1 and 2
 	},
 	{
 		"single_meeting_id_visible_only",
 		racing.ListRacesRequestFilter{MeetingIds: []int64{1}, ShowVisibleOnly: true},
-		1, // race 1 only
+		[]int64{1}, // race 1 only
 	},
 	{
 		"multiple_meeting_id_visible_only",
 		racing.ListRacesRequestFilter{MeetingIds: []int64{5, 6}, ShowVisibleOnly: true},
-		1, // race 5 only
+		[]int64{2}, // race 2 only
 	},
 }
 
-// Tests the List method applying various filters return the correct collection of races.
+// Tests the List method applying various filters return the correct collection of races ordered by race ID.
 func TestList(t *testing.T) {
-	testData := []struct {
+	// Setup test data in random order
+	var testData = []struct {
 		id        int64
 		meetingID int64
 		visible   int8
 	}{
 		{1, 1, 1}, // Visible
 		{2, 5, 1}, // Visible
-		{3, 1, 0}, // Not visible
 		{4, 6, 0}, // Not visible
+		{3, 1, 0}, // Not visible
 	}
 
 	// Setup test database.
 	// If the database file already exists, the file will be truncated.
-	file, err := os.Create(racingTestsDB)
+	file, err := os.Create(_racingTestsDB)
 	if err != nil {
 		t.Fatalf("Could not create test database. %s", err)
 	}
 
 	// Tear down test database on test completion.
 	defer file.Close()
-	defer os.Remove(racingTestsDB)
+	defer os.Remove(_racingTestsDB)
 
-	racingTestDB, err := sql.Open("sqlite3", racingTestsDB)
+	racingTestDB, err := sql.Open("sqlite3", _racingTestsDB)
 	if err != nil {
 		t.Fatalf("Could not open test database. %s", err)
 	}
@@ -191,26 +254,32 @@ func TestList(t *testing.T) {
 
 	racesRepo := NewRacesRepo(racingTestDB)
 
-	// Execute the List method for each test input as a separate sub-test.
+	// Run each test input as a separate sub-test.
 	for _, tc := range listTests {
 		t.Run(tc.name, func(t *testing.T) {
-			races, err := racesRepo.List(&tc.filter)
+			// Execute the List method using the input filter and ordering by race ID
+			races, err := racesRepo.List(&tc.filter, "id")
 			if err != nil {
 				t.Errorf("Expected race results but an error occurred. %s", err)
 			}
 
 			// Validate the actual number of races returned in the response.
 			// matches the expected number of races
-			if len(races) != tc.raceCount {
-				t.Errorf("Actual race count %d does not match expected race count %d", len(races), tc.raceCount)
+			if len(races) != len(tc.raceIds) {
+				t.Errorf("Actual race count %d does not match expected race count %d", len(races), len(tc.raceIds))
 			}
 
-			// Validate that all returned races are visible if the ShowVisibleOnly filter is applied.
-			if tc.filter.ShowVisibleOnly {
-				for _, race := range races {
+			for i, race := range races {
+				// Validate that all returned races are visible if the ShowVisibleOnly filter is applied.
+				if tc.filter.ShowVisibleOnly {
 					if !race.Visible {
 						t.Error("Returned race is not visible but expected only visible races.")
 					}
+				}
+
+				// Validate the race ID returned matches the expected race ID based on the expected order
+				if race.Id != tc.raceIds[i] {
+					t.Errorf("Actual race ID %d does not match expected race ID %d", race.Id, tc.raceIds[i])
 				}
 			}
 		})
