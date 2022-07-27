@@ -1,0 +1,69 @@
+syntax = "proto3";
+package sports;
+
+option go_package = "/sports";
+
+import "google/protobuf/timestamp.proto";
+import "google/api/annotations.proto";
+
+service Sports {
+  // ListEvents returns a list of events matching the specified filter or all events if no filter is provided.
+  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse) {
+    option (google.api.http) = { post: "/v1/list-events", body: "*" };
+  }
+
+  // GetEvent returns a single event by event ID if it exists.
+  rpc GetEvent(GetEventRequest) returns (Event) {
+    option (google.api.http) = { get: "/v1/events/{id}" };
+  }
+}
+
+/* Requests/Responses */
+
+// Request for ListEvents call.
+message ListEventsRequest {
+  ListEventsRequestFilter filter = 1;
+  Event.StatusCode status = 2;
+}
+
+// Response to ListEvents call.
+message ListEventsResponse {
+  repeated Event events = 1;
+}
+
+// Filter for listing events.
+message ListEventsRequestFilter {
+  repeated int64 sport_ids = 1;
+  bool show_visible_only = 2;
+}
+
+// Request for GetEvent call.
+message GetEventRequest {
+  // The ID of the event to retrieve
+  int64 id = 1;
+}
+
+/* Resources */
+
+// An event resource.
+message Event {
+  // ID represents a unique identifier for the event.
+  int64 id = 1;
+  // SportID represents a unique identifier for the event sport.
+  int64 sport_id = 2;
+  // Name is the official name given to the event.
+  string name = 3;
+  // AdvertisedStartTime is the time the event is advertised to run.
+  google.protobuf.Timestamp advertised_start_time = 4;
+
+  // StatusCode is an enum listing valid event statuses
+  enum StatusCode {
+    SCHEDULED = 0;
+    CANCELLED = 1;
+    POSTPONED = 2;
+    COMPLETED = 3;
+  }
+
+  // StatusCode is the running status of the event
+  StatusCode status = 5;
+}
