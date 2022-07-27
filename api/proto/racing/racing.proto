@@ -7,9 +7,14 @@ import "google/protobuf/timestamp.proto";
 import "google/api/annotations.proto";
 
 service Racing {
-  // ListRaces returns a list of all races.
+  // ListRaces returns a list of races matching the specified filter or all races if no filter is provided.
   rpc ListRaces(ListRacesRequest) returns (ListRacesResponse) {
     option (google.api.http) = { post: "/v1/list-races", body: "*" };
+  }
+
+  // GetRace returns a single race by race ID if it exists.
+  rpc GetRace(GetRaceRequest) returns (Race) {
+    option (google.api.http) = { get: "/v1/races/{id}" };
   }
 }
 
@@ -30,6 +35,12 @@ message ListRacesResponse {
 message ListRacesRequestFilter {
   repeated int64 meeting_ids = 1;
   bool show_visible_only = 2;
+}
+
+// Request for GetRace call.
+message GetRaceRequest {
+  // The ID of the race to retrieve
+  int64 id = 1;
 }
 
 /* Resources */

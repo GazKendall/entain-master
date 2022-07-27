@@ -6,6 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/golang/protobuf/ptypes"
 	_ "github.com/mattn/go-sqlite3"
 
@@ -19,6 +22,9 @@ type RacesRepo interface {
 
 	// List will return a list of races.
 	List(filter *racing.ListRacesRequestFilter, orderBy string) ([]*racing.Race, error)
+
+	// Get will return a single race by race ID.
+	Get(id int64) (*racing.Race, error)
 }
 
 type racesRepo struct {
@@ -64,6 +70,37 @@ func (r *racesRepo) List(filter *racing.ListRacesRequestFilter, orderBy string) 
 	}
 
 	return r.scanRaces(rows)
+}
+
+func (r *racesRepo) Get(id int64) (*racing.Race, error) {
+	var (
+		err   error
+		query string
+		args  []interface{}
+	)
+
+	query = getRaceQueries()[racesList]
+
+	query += " WHERE id = ?"
+	args = append(args, id)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Use the existing scanRaces method which will return an array
+	// with one element if the race is found or 0 elements if not found.
+	races, err := r.scanRaces(rows)
+
+	if len(races) == 0 {
+		// Race was not found
+		err = status.Error(codes.NotFound, "Race was not found")
+		return nil, err
+	}
+
+	// Race was found
+	return races[0], err
 }
 
 // applyFilter returns the formulated query and query parameter values

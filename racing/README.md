@@ -23,3 +23,7 @@ The races listed can be filtered by one or more Meeting ID values by specifying 
 Races can also be limited to visible races only by using the `show_visible_only` field in the `filter` with a value of `true`.
 
 To order races by a particular field or set of fields, specify the `order_by` field in `filter`. This accepts a comma-delimited list of field names. For descending order, apply a ` desc` suffix to the field name. If no order is specified, the results will be ordered by the `advertised_start_time` by default.
+
+`GET:/v1/races/:id`
+
+This endpoint allows users to retrieve a single race with the ID specified in the endpoint URL. A 404 `NotFound` error will be returned if no race exists with the provided ID.
