@@ -17,43 +17,43 @@ const _racingTestsDB = "racing_tests.db"
 // Setup inputs and expected outputs for TestApplyFilter test.
 var applyFilterTests = []struct {
 	name   string
-	filter racing.ListRacesRequestFilter
+	filter *racing.ListRacesRequestFilter
 	query  string
 	args   []interface{}
 }{
 	{
 		"empty_filter",
-		racing.ListRacesRequestFilter{},
+		&racing.ListRacesRequestFilter{},
 		"",
 		[]interface{}{},
 	},
 	{
 		"single_meeting_id",
-		racing.ListRacesRequestFilter{MeetingIds: []int64{5}},
+		&racing.ListRacesRequestFilter{MeetingIds: []int64{5}},
 		" WHERE meeting_id IN (?)",
 		[]interface{}{int64(5)},
 	},
 	{
 		"multiple_meeting_id",
-		racing.ListRacesRequestFilter{MeetingIds: []int64{5, 10}},
+		&racing.ListRacesRequestFilter{MeetingIds: []int64{5, 10}},
 		" WHERE meeting_id IN (?,?)",
 		[]interface{}{int64(5), int64(10)},
 	},
 	{
 		"no_meeting_id_visible_only",
-		racing.ListRacesRequestFilter{ShowVisibleOnly: true},
+		&racing.ListRacesRequestFilter{ShowVisibleOnly: true},
 		" WHERE visible = 1",
 		[]interface{}{},
 	},
 	{
 		"single_meeting_id_visible_only",
-		racing.ListRacesRequestFilter{MeetingIds: []int64{5}, ShowVisibleOnly: true},
+		&racing.ListRacesRequestFilter{MeetingIds: []int64{5}, ShowVisibleOnly: true},
 		" WHERE meeting_id IN (?) AND visible = 1",
 		[]interface{}{int64(5)},
 	},
 	{
 		"multiple_meeting_id_visible_only",
-		racing.ListRacesRequestFilter{MeetingIds: []int64{5, 10}, ShowVisibleOnly: true},
+		&racing.ListRacesRequestFilter{MeetingIds: []int64{5, 10}, ShowVisibleOnly: true},
 		" WHERE meeting_id IN (?,?) AND visible = 1",
 		[]interface{}{int64(5), int64(10)},
 	},
@@ -74,7 +74,7 @@ func TestApplyFilter(t *testing.T) {
 				args  []interface{}
 			)
 
-			query, args = r.applyFilter(q, &(tc.filter))
+			query, args = r.applyFilter(q, tc.filter)
 
 			// Validate the returned query matches the expected query.
 			if query != q+tc.query {
@@ -162,42 +162,42 @@ func TestApplyOrder(t *testing.T) {
 // Setup inputs and expected outputs for TestList test.
 var listTests = []struct {
 	name    string
-	filter  racing.ListRacesRequestFilter
+	filter  *racing.ListRacesRequestFilter
 	raceIds []int64
 }{
 	{
 		"no_results",
-		racing.ListRacesRequestFilter{MeetingIds: []int64{10}},
+		&racing.ListRacesRequestFilter{MeetingIds: []int64{10}},
 		nil, // no races
 	},
 	{
 		"empty_filter",
-		racing.ListRacesRequestFilter{},
+		&racing.ListRacesRequestFilter{},
 		[]int64{1, 2, 3, 4}, // all races
 	},
 	{
 		"single_meeting_id",
-		racing.ListRacesRequestFilter{MeetingIds: []int64{1}},
+		&racing.ListRacesRequestFilter{MeetingIds: []int64{1}},
 		[]int64{1, 3}, // races 1 and 3
 	},
 	{
 		"multiple_meeting_id",
-		racing.ListRacesRequestFilter{MeetingIds: []int64{1, 5}},
+		&racing.ListRacesRequestFilter{MeetingIds: []int64{1, 5}},
 		[]int64{1, 2, 3}, // race 1, 2 and 3
 	},
 	{
 		"no_meeting_id_visible_only",
-		racing.ListRacesRequestFilter{ShowVisibleOnly: true},
+		&racing.ListRacesRequestFilter{ShowVisibleOnly: true},
 		[]int64{1, 2}, // race 1 and 2
 	},
 	{
 		"single_meeting_id_visible_only",
-		racing.ListRacesRequestFilter{MeetingIds: []int64{1}, ShowVisibleOnly: true},
+		&racing.ListRacesRequestFilter{MeetingIds: []int64{1}, ShowVisibleOnly: true},
 		[]int64{1}, // race 1 only
 	},
 	{
 		"multiple_meeting_id_visible_only",
-		racing.ListRacesRequestFilter{MeetingIds: []int64{5, 6}, ShowVisibleOnly: true},
+		&racing.ListRacesRequestFilter{MeetingIds: []int64{5, 6}, ShowVisibleOnly: true},
 		[]int64{2}, // race 2 only
 	},
 }
@@ -245,7 +245,7 @@ func TestList(t *testing.T) {
 	for _, tc := range listTests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Execute the List method using the input filter and ordering by race ID
-			races, err := racesRepo.List(&tc.filter, "id")
+			races, err := racesRepo.List(tc.filter, "id")
 			if err != nil {
 				t.Errorf("Expected race results but an error occurred. %s", err)
 			}
