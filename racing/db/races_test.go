@@ -7,6 +7,9 @@ import (
 	"syreclabs.com/go/faker"
 	"testing"
 	"time"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const _racingTestsDB = "racing_tests.db"
@@ -345,7 +348,54 @@ func TestListStatus(t *testing.T) {
 	}
 }
 
-// setupDb prepares a test database and registers a cleanup task to delete the test database
+// Tests the Get method to validate it returns a race for the given ID.
+func TestGet(t *testing.T) {
+	// Setup and teardown test database
+	racingTestDB := setupDb(t)
+
+	// Setup test data
+	statement, err := racingTestDB.Prepare(`INSERT OR IGNORE INTO races(id, meeting_id, name, number, visible, advertised_start_time) VALUES (?,?,?,?,?,?)`)
+	if err != nil {
+		t.Fatalf("Could not setup test data. %s", err)
+	}
+
+	_, err = statement.Exec(
+		1,
+		faker.Number().Between(1, 10),
+		faker.Team().Name(),
+		faker.Number().Between(1, 12),
+		faker.Number().Between(0, 1),
+		faker.Time().Between(time.Now().AddDate(0, 0, -1), time.Now().AddDate(0, 0, 2)).Format(time.RFC3339),
+	)
+
+	if err != nil {
+		t.Fatalf("Could not setup test data. %s", err)
+	}
+
+	racesRepo := NewRacesRepo(racingTestDB)
+
+	// Execute the Get method and validate race with ID 1 is returned.
+	race, err := racesRepo.Get(1)
+	if err != nil || race.Id != 1 {
+		t.Errorf("Expected race with ID 1 to be returned. %s", err)
+	}
+}
+
+// Tests the Get method to validate it returns a NotFound error if no race is found.
+func TestGetNotFound(t *testing.T) {
+	// Setup and teardown test database
+	racingTestDB := setupDb(t)
+
+	racesRepo := NewRacesRepo(racingTestDB)
+
+	// Execute the Get method and validate a NotFound error occurs.
+	race, err := racesRepo.Get(1)
+	if race != nil || status.Code(err) != codes.NotFound {
+		t.Errorf("Expected a NotFound error. %s", err)
+	}
+}
+
+// setupDb prepares a test database and registers a cleanup task to delete the test database.
 func setupDb(t *testing.T) *sql.DB {
 	var (
 		dbFile *os.File
